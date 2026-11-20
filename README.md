@@ -1,5 +1,7 @@
 # WindowCover — 跟随遮挡
 
+> 本程序由 Muse 编写。
+
 用一个置顶无边框窗口，盖住其它软件界面的固定区域。目标窗口拖动、移动时，遮挡块每 100ms 跟随一次，始终盖住目标窗口内的同一个位置。
 
 ## 功能
@@ -81,3 +83,7 @@ dotnet build -c Release
 | `CoverSettings.cs` | 配置模型，`cover-settings.json` 读写 |
 | `README.md` | 本文件 |
 | `.gitignore` | 忽略 `bin/`、`obj/` 等构建产物 |
+
+## 作者
+
+本程序由 Muse 编写。
