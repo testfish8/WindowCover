@@ -92,32 +92,32 @@ public sealed class MainForm : Form
 
         AddRow(WrapLabel("目标窗口标题（包含匹配，如：微信 / Chrome / Notepad）"));
         _txtTargetTitle = new TextBox { Dock = DockStyle.Fill, Anchor = AnchorStyles.Left | AnchorStyles.Right };
-        AddRow(_txtTargetTitle, 28);
+        AddRow(_txtTargetTitle);
 
         AddRow(WrapLabel("X / Y：跟随模式 = 相对目标窗口左上角；固定模式 = 屏幕绝对坐标"));
 
-        // X/Y/宽/高分两行，每行两组，再也不会 4 组挤在一行超出窗口。
-        var grid = new TableLayoutPanel { ColumnCount = 4, Dock = DockStyle.Fill, AutoSize = true };
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 28F));
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 28F));
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
-        AddRow(grid, 62);
+        // X/Y/宽/高分两行，每行两组。上一版根因：外层行高写死 62px，
+        // 125% 缩放下两行 NumericUpDown 要约 70px，第二行被拦腰截断。
+        // 现在所有行高都不写死，由控件实际高度撑开，缩放多少都不会截。
         _numX = MakeNumber(-10000, 10000);
         _numY = MakeNumber(-10000, 10000);
         _numWidth = MakeNumber(10, 8000);
         _numHeight = MakeNumber(10, 8000);
-        grid.Controls.Add(new Label { Text = "X", AutoSize = true, Anchor = AnchorStyles.Left, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
-        grid.Controls.Add(_numX, 1, 0);
-        grid.Controls.Add(new Label { Text = "Y", AutoSize = true, Anchor = AnchorStyles.Left }, 2, 0);
-        grid.Controls.Add(_numY, 3, 0);
-        grid.Controls.Add(new Label { Text = "宽", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
-        grid.Controls.Add(_numWidth, 1, 1);
-        grid.Controls.Add(new Label { Text = "高", AutoSize = true, Anchor = AnchorStyles.Left }, 2, 1);
-        grid.Controls.Add(_numHeight, 3, 1);
+        var rowXY = NumberRow();
+        rowXY.Controls.Add(NumLabel("X"));
+        rowXY.Controls.Add(_numX);
+        rowXY.Controls.Add(NumLabel("Y"));
+        rowXY.Controls.Add(_numY);
+        AddRow(rowXY);
+        var rowWH = NumberRow();
+        rowWH.Controls.Add(NumLabel("宽"));
+        rowWH.Controls.Add(_numWidth);
+        rowWH.Controls.Add(NumLabel("高"));
+        rowWH.Controls.Add(_numHeight);
+        AddRow(rowWH);
 
         var colorRow = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
-        AddRow(colorRow, 32);
+        AddRow(colorRow);
         colorRow.Controls.Add(new Label { Text = "遮挡颜色：", AutoSize = true, TextAlign = ContentAlignment.MiddleLeft });
         _cmbColor = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList };
         foreach (var (name, _) in PresetColors)
@@ -133,12 +133,14 @@ public sealed class MainForm : Form
         _pnlColorPreview = new Panel { Size = new Size(120, 24), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.Black };
         colorRow.Controls.Add(_pnlColorPreview);
 
-        var grpMode = new GroupBox { Text = "模式", Dock = DockStyle.Fill };
-        _rdoFollow = new RadioButton { Text = "跟随窗口", Location = new Point(16, 22), AutoSize = true, Checked = true };
-        _rdoFixed = new RadioButton { Text = "固定屏幕位置", Location = new Point(170, 22), AutoSize = true };
-        grpMode.Controls.Add(_rdoFollow);
-        grpMode.Controls.Add(_rdoFixed);
-        AddRow(grpMode, 60);
+        var grpMode = new GroupBox { Text = "模式", Dock = DockStyle.Fill, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+        var modeRow = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
+        _rdoFollow = new RadioButton { Text = "跟随窗口", AutoSize = true, Checked = true };
+        _rdoFixed = new RadioButton { Text = "固定屏幕位置", AutoSize = true };
+        modeRow.Controls.Add(_rdoFollow);
+        modeRow.Controls.Add(_rdoFixed);
+        grpMode.Controls.Add(modeRow);
+        AddRow(grpMode);
 
         _chkClickThrough = new CheckBox { Text = "穿透点击", AutoSize = true };
         _chkClickThrough.CheckedChanged += (_, _) => ApplyClickThrough();
@@ -146,7 +148,7 @@ public sealed class MainForm : Form
         AddRow(WrapLabel("开启穿透点击后，鼠标点击会穿过遮挡块，落到下层窗口。"));
 
         var btnRow = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
-        AddRow(btnRow, 44);
+        AddRow(btnRow);
         _btnStart = new Button { Text = "开始遮挡", Size = new Size(160, 36) };
         _btnStart.Click += (_, _) => StartCover();
         btnRow.Controls.Add(_btnStart);
@@ -167,7 +169,23 @@ public sealed class MainForm : Form
 
     private static NumericUpDown MakeNumber(int min, int max) => new()
     {
-        Minimum = min, Maximum = max, Dock = DockStyle.Fill,
+        Minimum = min, Maximum = max, Width = 230,
+    };
+
+    // 数字输入行：不写死高度，行高由 NumericUpDown 实际高度撑开。
+    private static FlowLayoutPanel NumberRow() => new()
+    {
+        AutoSize = true,
+        AutoSizeMode = AutoSizeMode.GrowAndShrink,
+        WrapContents = false,
+        Anchor = AnchorStyles.Left | AnchorStyles.Right,
+        Margin = new Padding(0),
+        Padding = new Padding(0),
+    };
+
+    private static Label NumLabel(string text) => new()
+    {
+        Text = text, AutoSize = true, Margin = new Padding(0, 5, 4, 0),
     };
 
     private void AddLabeledNumber(string label, int x, int y, out NumericUpDown num, int min, int max)
