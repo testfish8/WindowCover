@@ -44,9 +44,13 @@ public sealed class MainForm : Form
     public MainForm()
     {
         Text = "WindowCover - 跟随遮挡";
-        ClientSize = new Size(480, 560);
-        FormBorderStyle = FormBorderStyle.FixedSingle;
-        MaximizeBox = false;
+        AutoScaleMode = AutoScaleMode.Dpi;
+        // 之前 480 宽是根因：“高”那组控件右边缘在 498，本身就超出窗口，
+        // 长标签在 125% 缩放下还会更宽。改宽、可拉伸，布局用面板自动换行。
+        ClientSize = new Size(620, 640);
+        MinimumSize = new Size(560, 600);
+        FormBorderStyle = FormBorderStyle.Sizable;
+        MaximizeBox = true;
         StartPosition = FormStartPosition.CenterScreen;
 
         BuildUi();
@@ -61,100 +65,110 @@ public sealed class MainForm : Form
 
     private void BuildUi()
     {
-        int y = 16;
-        int labelX = 16, fieldX = 16, fieldW = 448;
-
-        var lblTitle = new Label { Text = "目标窗口标题（包含匹配，如：微信 / Chrome / Notepad）", Location = new Point(labelX, y), AutoSize = true };
-        Controls.Add(lblTitle);
-        y += 24;
-        _txtTargetTitle = new TextBox { Location = new Point(fieldX, y), Width = fieldW };
-        Controls.Add(_txtTargetTitle);
-        y += 36;
-
-        var lblXY = new Label
+        // 主布局：单列 TableLayoutPanel，Dock.Fill，随窗口拉伸；长标签设 MaximumSize 自动换行。
+        var layout = new TableLayoutPanel
         {
-            Text = "X / Y：跟随模式 = 相对目标窗口左上角；固定模式 = 屏幕绝对坐标",
-            Location = new Point(labelX, y), AutoSize = true
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            Padding = new Padding(16),
+            AutoSize = false,
         };
-        Controls.Add(lblXY);
-        y += 24;
-        AddLabeledNumber("X", 16, y, out _numX, -10000, 10000);
-        AddLabeledNumber("Y", 140, y, out _numY, -10000, 10000);
-        AddLabeledNumber("宽", 264, y, out _numWidth, 10, 8000);
-        AddLabeledNumber("高", 388, y, out _numHeight, 10, 8000);
-        y += 40;
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        Controls.Add(layout);
 
-        var lblColor = new Label { Text = "遮挡颜色：", Location = new Point(labelX, y + 4), AutoSize = true };
-        Controls.Add(lblColor);
-        _cmbColor = new ComboBox
+        Label WrapLabel(string text) => new()
         {
-            Location = new Point(92, y), Width = 140,
-            DropDownStyle = ComboBoxStyle.DropDownList
+            Text = text,
+            AutoSize = true,
+            MaximumSize = new Size(588, 0),
+            Anchor = AnchorStyles.Left | AnchorStyles.Right,
         };
+
+        void AddRow(Control c, int height = -1)
+        {
+            layout.RowStyles.Add(new RowStyle(height > 0 ? SizeType.Absolute : SizeType.AutoSize, height > 0 ? height : 0));
+            layout.Controls.Add(c);
+        }
+
+        AddRow(WrapLabel("目标窗口标题（包含匹配，如：微信 / Chrome / Notepad）"));
+        _txtTargetTitle = new TextBox { Dock = DockStyle.Fill, Anchor = AnchorStyles.Left | AnchorStyles.Right };
+        AddRow(_txtTargetTitle, 28);
+
+        AddRow(WrapLabel("X / Y：跟随模式 = 相对目标窗口左上角；固定模式 = 屏幕绝对坐标"));
+
+        // X/Y/宽/高分两行，每行两组，再也不会 4 组挤在一行超出窗口。
+        var grid = new TableLayoutPanel { ColumnCount = 4, Dock = DockStyle.Fill, AutoSize = true };
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 28F));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 28F));
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+        AddRow(grid, 62);
+        _numX = MakeNumber(-10000, 10000);
+        _numY = MakeNumber(-10000, 10000);
+        _numWidth = MakeNumber(10, 8000);
+        _numHeight = MakeNumber(10, 8000);
+        grid.Controls.Add(new Label { Text = "X", AutoSize = true, Anchor = AnchorStyles.Left, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+        grid.Controls.Add(_numX, 1, 0);
+        grid.Controls.Add(new Label { Text = "Y", AutoSize = true, Anchor = AnchorStyles.Left }, 2, 0);
+        grid.Controls.Add(_numY, 3, 0);
+        grid.Controls.Add(new Label { Text = "宽", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
+        grid.Controls.Add(_numWidth, 1, 1);
+        grid.Controls.Add(new Label { Text = "高", AutoSize = true, Anchor = AnchorStyles.Left }, 2, 1);
+        grid.Controls.Add(_numHeight, 3, 1);
+
+        var colorRow = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
+        AddRow(colorRow, 32);
+        colorRow.Controls.Add(new Label { Text = "遮挡颜色：", AutoSize = true, TextAlign = ContentAlignment.MiddleLeft });
+        _cmbColor = new ComboBox { Width = 140, DropDownStyle = ComboBoxStyle.DropDownList };
         foreach (var (name, _) in PresetColors)
         {
             _cmbColor.Items.Add(name);
         }
         _cmbColor.Items.Add("自定义…");
         _cmbColor.SelectedIndexChanged += OnColorSelected;
-        Controls.Add(_cmbColor);
-
-        var btnPickColor = new Button { Text = "选颜色…", Location = new Point(244, y - 1), Width = 88 };
+        colorRow.Controls.Add(_cmbColor);
+        var btnPickColor = new Button { Text = "选颜色…", Width = 88 };
         btnPickColor.Click += (_, _) => PickCustomColor();
-        Controls.Add(btnPickColor);
+        colorRow.Controls.Add(btnPickColor);
+        _pnlColorPreview = new Panel { Size = new Size(120, 24), BorderStyle = BorderStyle.FixedSingle, BackColor = Color.Black };
+        colorRow.Controls.Add(_pnlColorPreview);
 
-        _pnlColorPreview = new Panel
-        {
-            Location = new Point(344, y), Size = new Size(120, 24),
-            BorderStyle = BorderStyle.FixedSingle, BackColor = Color.Black
-        };
-        Controls.Add(_pnlColorPreview);
-        y += 44;
-
-        var grpMode = new GroupBox { Text = "模式", Location = new Point(fieldX, y), Size = new Size(fieldW, 56) };
+        var grpMode = new GroupBox { Text = "模式", Dock = DockStyle.Fill };
         _rdoFollow = new RadioButton { Text = "跟随窗口", Location = new Point(16, 22), AutoSize = true, Checked = true };
-        _rdoFixed = new RadioButton { Text = "固定屏幕位置", Location = new Point(150, 22), AutoSize = true };
+        _rdoFixed = new RadioButton { Text = "固定屏幕位置", Location = new Point(170, 22), AutoSize = true };
         grpMode.Controls.Add(_rdoFollow);
         grpMode.Controls.Add(_rdoFixed);
-        Controls.Add(grpMode);
-        y += 68;
+        AddRow(grpMode, 60);
 
-        _chkClickThrough = new CheckBox
-        {
-            Text = "穿透点击（开启后鼠标点击会穿过遮挡块，落到下层窗口）",
-            Location = new Point(fieldX, y), AutoSize = true
-        };
+        _chkClickThrough = new CheckBox { Text = "穿透点击", AutoSize = true };
         _chkClickThrough.CheckedChanged += (_, _) => ApplyClickThrough();
-        Controls.Add(_chkClickThrough);
-        y += 32;
+        AddRow(_chkClickThrough);
+        AddRow(WrapLabel("开启穿透点击后，鼠标点击会穿过遮挡块，落到下层窗口。"));
 
-        _btnStart = new Button { Text = "开始遮挡", Location = new Point(fieldX, y), Size = new Size(140, 36) };
+        var btnRow = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = true };
+        AddRow(btnRow, 44);
+        _btnStart = new Button { Text = "开始遮挡", Size = new Size(160, 36) };
         _btnStart.Click += (_, _) => StartCover();
-        Controls.Add(_btnStart);
-
-        _btnStop = new Button { Text = "停止", Location = new Point(172, y), Size = new Size(140, 36), Enabled = false };
+        btnRow.Controls.Add(_btnStart);
+        _btnStop = new Button { Text = "停止", Size = new Size(160, 36), Enabled = false };
         _btnStop.Click += (_, _) => StopCover();
-        Controls.Add(_btnStop);
-
-        var btnExit = new Button { Text = "退出程序", Location = new Point(328, y), Size = new Size(136, 36) };
+        btnRow.Controls.Add(_btnStop);
+        var btnExit = new Button { Text = "退出程序", Size = new Size(160, 36) };
         btnExit.Click += (_, _) => ExitApp();
-        Controls.Add(btnExit);
-        y += 52;
+        btnRow.Controls.Add(btnExit);
 
-        _lblStatus = new Label { Text = "状态：未开始", Location = new Point(labelX, y), AutoSize = true };
-        Controls.Add(_lblStatus);
-        y += 24;
-        _lblTargetPos = new Label { Text = "目标窗口：-", Location = new Point(labelX, y), AutoSize = true };
-        Controls.Add(_lblTargetPos);
-        y += 28;
+        _lblStatus = new Label { Text = "状态：未开始", AutoSize = true, MaximumSize = new Size(588, 0) };
+        AddRow(_lblStatus);
+        _lblTargetPos = new Label { Text = "目标窗口：-", AutoSize = true, MaximumSize = new Size(588, 0) };
+        AddRow(_lblTargetPos);
 
-        var lblHint = new Label
-        {
-            Text = "开始后主窗自动藏到托盘。右键托盘图标可显示主窗 / 退出。\n配置自动保存到 exe 同目录的 cover-settings.json，下次启动自动加载。",
-            Location = new Point(labelX, y), Size = new Size(fieldW, 40)
-        };
-        Controls.Add(lblHint);
+        AddRow(WrapLabel("开始后主窗自动藏到托盘。右键托盘图标可显示主窗 / 退出。配置自动保存到 exe 同目录的 cover-settings.json，下次启动自动加载。"));
     }
+
+    private static NumericUpDown MakeNumber(int min, int max) => new()
+    {
+        Minimum = min, Maximum = max, Dock = DockStyle.Fill,
+    };
 
     private void AddLabeledNumber(string label, int x, int y, out NumericUpDown num, int min, int max)
     {
